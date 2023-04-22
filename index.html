@@ -1,190 +1,207 @@
-<html><head>
-<title> JPs cornwall pics Jan 2022 </title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-* {box-sizing: border-box;}
-body {font-family: Verdana, sans-serif;}
-.mySlides {display: none;}
-img {vertical-align: middle;}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orc Invaders</title>
+  <style>
+    body, html {
+      margin: 0;
+      height: 100%;
+      background-color: #4169E1;
+      overflow: hidden;
+    }
 
-/* Slideshow container */
-.slideshow-container {
-  max-width: 1080px;
-  position: relative;
-  margin: auto;
-}
-
-/* Caption text */
-.text {
-  color: #f2f2f2;
-  font-size: 15px;
-  padding: 8px 12px;
-  position: absolute;
-  bottom: 40px;
-  width: 100%;
-  text-align: center;
-}
-
-/* Number text (1/3 etc) */
-.numbertext {
-  color: #f2f2f2;
-  font-size: 12px;
-  padding: 8px 12px;
-  position: absolute;
-  top: 0;
-}
-
-/* The dots/bullets/indicators */
-.dot {
-  height: 15px;
-  width: 15px;
-  margin: 0 2px;
-  background-color: #bbb;
-  border-radius: 50%;
-  display: inline-block;
-  transition: background-color 0.6s ease;
-}
-
-.active {
-  background-color: #717171;
-}
-
-/* Fading animation */
-.fade {
-  -webkit-animation-name: fade;
-  -webkit-animation-duration: 1.5s;
-  animation-name: fade;
-  animation-duration: 1.5s;
-}
-
-@-webkit-keyframes fade {
-  from {opacity: .4}
-  to {opacity: 1}
-}
-
-@keyframes fade {
-  from {opacity: .4}
-  to {opacity: 1}
-}
-
-/* On smaller screens, decrease text size */
-@media only screen and (max-width: 300px) {
-  .text {font-size: 11px}
-}
-</style>
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
 </head>
 <body>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
 
-  <h2>JPs cornwall pics Jan 2022</h2>
-  <p>:</p>
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
-<!-- Slideshow container -->
-<div class="slideshow-container">
+    const ship = {
+      x: canvas.width / 2,
+      width: 40,
+      height: 20,
+      speed: 5,
+    };
 
-  <!-- Full-width images with number and caption text -->
-  <div class="mySlides fade">
-    <div class="numbertext">1 / 3</div>
-    <img src="img1.jpg" style="width:100%">
-    <div class="text">Female stonechat</div>
-  </div>
+    const munition = {
+      x: 0,
+      y: 0,
+      radius: 5,
+      speedX: 0,
+      speedY: 0,
+      fired: false,
+      gravity: 2,
+    };
 
-  <div class="mySlides fade">
-    <div class="numbertext">2 / 3</div>
-    <img src="img2.jpg" style="width:100%">
-    <div class="text">The upper river Dart, a rainforest!</div>
-  </div>
+    const invaders = [];
+    const numInvaders = 50;
+    const invaderSize = 20;
+    const cityThreshold = canvas.height * 0.5;
+    let civilianDeaths = 0;
+    let invaderLives = 50;
 
-  <div class="mySlides fade">
-    <div class="numbertext">3 / 3</div>
-    <img src="img3.jpg" style="width:100%">
-    <div class="text">A friendly Robin</div>
-  </div>
-
-  <div class="mySlides fade">
-    <div class="numbertext">4 / 4</div>
-    <img src="img4.jpg" style="width:100%">
-    <div class="text">Turnstone</div>
-  </div>
-
-  <div class="mySlides fade">
-    <div class="numbertext">5 / 5</div>
-    <img src="img5.jpg" style="width:100%">
-    <div class="text">Curlew</div>
-  </div>
-
-<div class="mySlides fade">
-  <div class="numbertext">5 / 5</div>
-  <img src="img6.jpg" style="width:100%">
-  <div class="text"></div>
-</div>
-
-
-<div class="mySlides fade">
-  <div class="numbertext">5 / 5</div>
-  <img src="img7.jpg" style="width:100%">
-  <div class="text"></div>
-</div>
+    for (let i = 0; i < numInvaders; i++) {
+      invaders.push({
+        x: Math.random() * (canvas.width - invaderSize),
+        y: canvas.height - invaderSize - Math.random() * (canvas.height * 0.1),
+        width: invaderSize,
+        height: invaderSize,
+        speed: Math.random() * 0.2 + 0.1,
+        lives: 1,
+      });
+    }
 
 
 
-<div class="mySlides fade">
-  <div class="numbertext">5 / 5</div>
-  <img src="img8.jpg" style="width:100%">
-  <div class="text">Seal</div>
-</div>
+    function drawShip() {
+      ctx.fillStyle = 'black';
+      ctx.fillRect(ship.x - ship.width / 2, 10, ship.width, ship.height);
+    }
 
-<div class="mySlides fade">
-  <div class="numbertext">5 / 5</div>
-  <img src="img9.jpg" style="width:100%">
-  <div class="text">Herring gull</div>
-</div>
+    function drawMunition() {
+      if (!munition.fired) return;
+
+      ctx.fillStyle = 'red';
+      ctx.beginPath();
+      ctx.arc(munition.x, munition.y, munition.radius, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    function drawInvaders() {
+      ctx.fillStyle = 'green';
+      for (const invader of invaders) {
+        ctx.fillRect(invader.x, invader.y, invader.width, invader.height);
+      }
+    }
+
+    function drawCornfield() {
+      ctx.fillStyle = '#DAA520';
+      ctx.fillRect(0, cityThreshold, canvas.width, canvas.height - cityThreshold);
+    }
+
+    function drawCivilianDeaths() {
+      ctx.fillStyle = 'white';
+      ctx.font = '16px Arial';
+      ctx.fillText('Civilian Deaths: ' + civilianDeaths, 10, canvas.height - 10);
+    }
+
+    function drawInvaderLives() {
+      ctx.fillStyle = 'white';
+      ctx.font = '16px Arial';
+      ctx.fillText('invaderLives: ' + invaderLives, canvas.width - 150 , canvas.height - 10);
+    }
+
+    function updateMunition() {
+      if (!munition.fired) return;
+
+      munition.x += munition.speedX;
+      munition.y += munition.speedY;
+      munition.speedY += munition.gravity * 0.01; // Apply gravity
+
+     if (munition.y > canvas.height) {
+       munition.fired = false;
+     }
+   }
+
+   function updateInvaders() {
+     for (let i = 0; i < invaders.length; i++) {
+       const invader = invaders[i];
+
+       invader.x += invader.speed * (invader.x < canvas.width / 2 ? 1 : -1);
+       invader.y -= invader.speed * 0.5;
+
+       if (munition.fired && checkCollision(invader, munition)) {
+         invader.lives--;
+         invaderLives--;
+         munition.fired = false;
+
+         if (invader.lives <= 0) {
+           // Remove the invader from the invaders array.
+           invaders.splice(i, 1);
+           // Decrement the index so that the next iteration will process the correct invader.
+           i--;
+           continue;
+         }
+       }
+
+       if (invader.y <= cityThreshold) {
+         civilianDeaths++;
+         invader.x = invader.x < canvas.width / 2 ? -invaderSize : canvas.width;
+         invader.y = cityThreshold + Math.random() * (canvas.height - cityThreshold - invaderSize);
+       }
+     }
+   }
 
 
-<div class="mySlides fade">
-  <div class="numbertext">5 / 5</div>
-  <img src="img10.jpg" style="width:100%">
-  <div class="text">Goldfinch</div>
-</div>
-<!-- Next and previous buttons -->
-<a class="prev" onclick="plusSlides(-1)">&#10094;</a>
-<a class="next" onclick="plusSlides(1)">&#10095;</a>
 
-<br>
-<div style="text-align:center">
-  <span class="dot"></span>
-  <span class="dot"></span>
-  <span class="dot"></span>
-  <span class="dot"></span>
-  <span class="dot"></span>
-  <span class="dot"></span>
-  <span class="dot"></span>
-  <span class="dot"></span>
-  <span class="dot"></span>
-  <span class="dot"></span>
-  <span class="dot"></span>
-</div>
+   function checkCollision(rect, circle) {
+     const distX = Math.abs(circle.x - rect.x - rect.width / 2);
+     const distY = Math.abs(circle.y - rect.y - rect.height / 2);
 
-<script>
-var slideIndex = 0;
-showSlides();
+     if (distX > (rect.width / 2 + circle.radius)) { return false; }
+     if (distY > (rect.height / 2 + circle.radius)) { return false; }
 
-function showSlides() {
-  var i;
-  var slides = document.getElementsByClassName("mySlides");
-  var dots = document.getElementsByClassName("dot");
-  for (i = 0; i < slides.length; i++) {
-    slides[i].style.display = "none";
-  }
-  slideIndex++;
-  if (slideIndex > slides.length) {slideIndex = 1}
-  for (i = 0; i < dots.length; i++) {
-    dots[i].className = dots[i].className.replace(" active", "");
-  }
-  slides[slideIndex-1].style.display = "block";
-  dots[slideIndex-1].className += " active";
-  setTimeout(showSlides, 5000); // Change image every 2 seconds
-}
-</script>
+     if (distX <= (rect.width / 2)) { return true; }
+     if (distY <= (rect.height / 2)) { return true; }
 
+     const dx = distX - rect.width / 2;
+     const dy = distY - rect.height / 2;
+     return (dx * dx + dy * dy <= (circle.radius * circle.radius));
+   }
+
+   function gameLoop() {
+     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+     drawCornfield();
+     drawShip();
+     drawMunition();
+     drawInvaders();
+     drawCivilianDeaths();
+     drawInvaderLives();
+
+     updateMunition();
+     updateInvaders();
+     // Check if invaderLives has reached 0 and display "Victory!" text.
+     if (invaderLives === 0) {
+       ctx.fillStyle = 'white';
+       ctx.font = '72px Arial';
+       ctx.fillText('SLAVA UKRAINI!', canvas.width / 2 - 70, canvas.height / 2);
+     } else {
+       requestAnimationFrame(gameLoop);
+     }
+   }
+
+
+   gameLoop();
+
+   window.addEventListener('keydown', (e) => {
+     if (e.code === 'ArrowLeft') {
+       ship.x -= ship.speed;
+     } else if (e.code === 'ArrowRight') {
+       ship.x += ship.speed;
+     } else if (e.code === 'Space') {
+       if (!munition.fired) {
+         munition.x = ship.x;
+         munition.y = 10 + ship.height;
+         munition.speedX = 0;
+         munition.speedY = 10;
+         munition.fired = true;
+       }
+     }
+   });
+ </script>
 </body>
 </html>

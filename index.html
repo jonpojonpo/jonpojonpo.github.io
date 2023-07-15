@@ -1,207 +1,190 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Orc Invaders</title>
-  <style>
-    body, html {
-      margin: 0;
-      height: 100%;
-      background-color: #4169E1;
-      overflow: hidden;
-    }
+<style>
+body {
+  animation: colors 10s linear infinite;
+}
 
-    canvas {
-      display: block;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-  </style>
+@keyframes colors {
+  0%, 12% {background-color: red;}
+  10% {background-color: black;}
+  15%, 32% {background-color: orange;}
+  30% {background-color: black;}
+  32%, 53% {background-color: yellow;}
+  50% {background-color: black;}
+  55%, 72% {background-color: green;}
+  70% {background-color: black;}
+  72%, 93% {background-color: blue;}
+  90%, 95% {background-color: black;}
+}
+
+@keyframes walk {
+  0%, 100% {transform: translateX(0%);}
+  50% {transform: translateX(-200%);}
+}
+
+@keyframes rocket {
+  0% {bottom: 0; transform: rotate(0deg);}
+  100% {bottom: 100vh; transform: rotate(360deg);}
+}
+
+@keyframes jump {
+  0%, 100% {transform: translateX(10%);}
+  50% {transform: translateX(-20%);}
+  55% {transform: translateY(-50%);}
+  60% {transform: translateY(0%);}
+  70% {transform: translateX(10%);}
+}
+
+@keyframes dance {
+  0%, 100% {transform: translateX(0%);}
+  50% {transform: translateX(-50%);}
+}
+
+.walkingHamster {
+  position: fixed;
+  animation: walk 10s cubic-bezier(0.445, 0.05, 0.55, 0.95) infinite;
+}
+
+.rocketHamster {
+  position: fixed;
+  bottom: 0;
+  animation: rocket 10s linear infinite;
+}
+
+.jumpingHamster {
+  position: fixed;
+  animation: jump 10s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+}
+
+.dancingHamsters {
+  position: fixed;
+  animation: dance 10s cubic-bezier(0.445, 0.05, 0.55, 0.95) infinite;
+}
+</style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-  <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+<audio autoplay loop>
+  <source src="./dodo.mp3" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
 
-    const ship = {
-      x: canvas.width / 2,
-      width: 40,
-      height: 20,
-      speed: 5,
-    };
+<script>
+// Function to create a walking hamster at a random position and with a random direction
+function createWalkingHamster() {
+  // Create the hamster img element
+  var hamster = document.createElement("img");
+  hamster.src = "./hamster4.gif";  // set the source to the hamster gif
+  hamster.classList.add("walkingHamster");  // add the walkingHamster class
 
-    const munition = {
-      x: 0,
-      y: 0,
-      radius: 5,
-      speedX: 0,
-      speedY: 0,
-      fired: false,
-      gravity: 2,
-    };
+  // Set a random left position between 0% and 100%
+  hamster.style.left = Math.random() * 100 + "%";
 
-    const invaders = [];
-    const numInvaders = 50;
-    const invaderSize = 20;
-    const cityThreshold = canvas.height * 0.5;
-    let civilianDeaths = 0;
-    let invaderLives = 50;
+  // Set a random top position between 0% and 100%
+  hamster.style.top = Math.random() * 100 + "%";
 
-    for (let i = 0; i < numInvaders; i++) {
-      invaders.push({
-        x: Math.random() * (canvas.width - invaderSize),
-        y: canvas.height - invaderSize - Math.random() * (canvas.height * 0.1),
-        width: invaderSize,
-        height: invaderSize,
-        speed: Math.random() * 0.2 + 0.1,
-        lives: 1,
-      });
+  // Randomly decide whether the hamster walks left or right
+  if (Math.random() < 0.5) {
+    hamster.style.transform = "scaleX(-1)";
+  }
+
+  // Set a random animation duration between 5s and 15s
+  hamster.style.animationDuration = (Math.random() * 10 + 5) + "s";
+
+  // Set a random interval to flip the hamster's direction
+  setInterval(function() {
+    if (hamster.style.transform === "scaleX(-1)") {
+      hamster.style.transform = "";
+    } else {
+      hamster.style.transform = "scaleX(-1)";
     }
+  }, Math.random() * 5000 + 5000);  // between 5s and 10s
 
+  // Add the hamster to the body
+  document.body.appendChild(hamster);
+}
 
+// Function to create a rocket hamster at a random x position
+function createRocketHamster() {
+  // Create the hamster img element
+  var hamster = document.createElement("img");
+  hamster.src = "./hamster3.gif";  // set the source to the hamster gif
+  hamster.classList.add("rocketHamster");  // add the rocketHamster class
 
-    function drawShip() {
-      ctx.fillStyle = 'black';
-      ctx.fillRect(ship.x - ship.width / 2, 10, ship.width, ship.height);
-    }
+  // Set a random left position between 0% and 100%
+  hamster.style.left = Math.random() * 100 + "%";
 
-    function drawMunition() {
-      if (!munition.fired) return;
+  // Set a random animation duration between 5s and 15s
+  hamster.style.animationDuration = (Math.random() * 10 + 5) + "s";
 
-      ctx.fillStyle = 'red';
-      ctx.beginPath();
-      ctx.arc(munition.x, munition.y, munition.radius, 0, 2 * Math.PI);
-      ctx.fill();
-    }
+  // Set a random animation delay between 0s and 5s
+  hamster.style.animationDelay = Math.random() * 5 + "s";
 
-    function drawInvaders() {
-      ctx.fillStyle = 'green';
-      for (const invader of invaders) {
-        ctx.fillRect(invader.x, invader.y, invader.width, invader.height);
-      }
-    }
+  // Add the hamster to the body
+  document.body.appendChild(hamster);
+}
 
-    function drawCornfield() {
-      ctx.fillStyle = '#DAA520';
-      ctx.fillRect(0, cityThreshold, canvas.width, canvas.height - cityThreshold);
-    }
+// Function to create a jumping hamster
+function createJumpingHamster() {
+  // Create the hamster img element
+  var hamster = document.createElement("img");
+  hamster.src = "./hamster2.gif";  // set the source to the hamster gif
+  hamster.classList.add("jumpingHamster");  // add the jumpingHamster class
 
-    function drawCivilianDeaths() {
-      ctx.fillStyle = 'white';
-      ctx.font = '16px Arial';
-      ctx.fillText('Civilian Deaths: ' + civilianDeaths, 10, canvas.height - 10);
-    }
+  // Set a random left position between 0% and 100%
+  hamster.style.left = Math.random() * 100 + "%";
 
-    function drawInvaderLives() {
-      ctx.fillStyle = 'white';
-      ctx.font = '16px Arial';
-      ctx.fillText('invaderLives: ' + invaderLives, canvas.width - 150 , canvas.height - 10);
-    }
+  // Set a random top position between 0% and 100%
+  hamster.style.top = Math.random() * 100 + "%";
 
-    function updateMunition() {
-      if (!munition.fired) return;
+  // Set a random animation duration between 5s and 15s
+  hamster.style.animationDuration = (Math.random() * 10 + 5) + "s";
 
-      munition.x += munition.speedX;
-      munition.y += munition.speedY;
-      munition.speedY += munition.gravity * 0.01; // Apply gravity
+  // Add the hamster to the body
+  document.body.appendChild(hamster);
+}
 
-     if (munition.y > canvas.height) {
-       munition.fired = false;
-     }
-   }
+// Function to create a line of dancing hamsters at a random y position
+function createDancingHamsters() {
+  // Create the hamster img element
+  var hamster = document.createElement("img");
+  hamster.src = "./hamster1.gif";  // set the source to the hamster gif
+  hamster.classList.add("dancingHamsters");  // add the dancingHamsters class
 
-   function updateInvaders() {
-     for (let i = 0; i < invaders.length; i++) {
-       const invader = invaders[i];
+  // Set a random left position between 0% and 100%
+  hamster.style.left = Math.random() * 100 + "%";
+  // Set a random top position between 0% and 100%
+  hamster.style.top = Math.random() * 100 + "%";
 
-       invader.x += invader.speed * (invader.x < canvas.width / 2 ? 1 : -1);
-       invader.y -= invader.speed * 0.5;
+  // Set a random animation duration between 5s and 15s
+  hamster.style.animationDuration = (Math.random() * 10 + 5) + "s";
 
-       if (munition.fired && checkCollision(invader, munition)) {
-         invader.lives--;
-         invaderLives--;
-         munition.fired = false;
+  // Add the hamster to the body
+  document.body.appendChild(hamster);
+}
 
-         if (invader.lives <= 0) {
-           // Remove the invader from the invaders array.
-           invaders.splice(i, 1);
-           // Decrement the index so that the next iteration will process the correct invader.
-           i--;
-           continue;
-         }
-       }
+// Create 20 walking hamsters
+for (var i = 0; i < 20; i++) {
+  createWalkingHamster();
+}
 
-       if (invader.y <= cityThreshold) {
-         civilianDeaths++;
-         invader.x = invader.x < canvas.width / 2 ? -invaderSize : canvas.width;
-         invader.y = cityThreshold + Math.random() * (canvas.height - cityThreshold - invaderSize);
-       }
-     }
-   }
+// Create 20 rocket hamsters
+for (var i = 0; i < 20; i++) {
+  createRocketHamster();
+}
 
+// Create 20 jumping hamsters
+for (var i = 0; i < 20; i++) {
+  createJumpingHamster();
+}
 
+// Create 20 lines of dancing hamsters
+for (var i = 0; i < 30; i++) {
+  createDancingHamsters();
+}
+</script>
 
-   function checkCollision(rect, circle) {
-     const distX = Math.abs(circle.x - rect.x - rect.width / 2);
-     const distY = Math.abs(circle.y - rect.y - rect.height / 2);
-
-     if (distX > (rect.width / 2 + circle.radius)) { return false; }
-     if (distY > (rect.height / 2 + circle.radius)) { return false; }
-
-     if (distX <= (rect.width / 2)) { return true; }
-     if (distY <= (rect.height / 2)) { return true; }
-
-     const dx = distX - rect.width / 2;
-     const dy = distY - rect.height / 2;
-     return (dx * dx + dy * dy <= (circle.radius * circle.radius));
-   }
-
-   function gameLoop() {
-     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-     drawCornfield();
-     drawShip();
-     drawMunition();
-     drawInvaders();
-     drawCivilianDeaths();
-     drawInvaderLives();
-
-     updateMunition();
-     updateInvaders();
-     // Check if invaderLives has reached 0 and display "Victory!" text.
-     if (invaderLives === 0) {
-       ctx.fillStyle = 'white';
-       ctx.font = '72px Arial';
-       ctx.fillText('SLAVA UKRAINI!', canvas.width / 2 - 70, canvas.height / 2);
-     } else {
-       requestAnimationFrame(gameLoop);
-     }
-   }
-
-
-   gameLoop();
-
-   window.addEventListener('keydown', (e) => {
-     if (e.code === 'ArrowLeft') {
-       ship.x -= ship.speed;
-     } else if (e.code === 'ArrowRight') {
-       ship.x += ship.speed;
-     } else if (e.code === 'Space') {
-       if (!munition.fired) {
-         munition.x = ship.x;
-         munition.y = 10 + ship.height;
-         munition.speedX = 0;
-         munition.speedY = 10;
-         munition.fired = true;
-       }
-     }
-   });
- </script>
 </body>
 </html>

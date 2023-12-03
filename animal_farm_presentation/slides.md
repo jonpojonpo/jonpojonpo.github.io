@@ -1,7 +1,7 @@
 
 # Introduction to 'Animal Farm'
 Overview of George Orwell's classic allegory of the Russian Revolution and the Soviet Union's early years.
-
+![farm](A_vivid_and_slightly_caricatured_illustration_of_k.png)
 ---
 
 # Main Characters

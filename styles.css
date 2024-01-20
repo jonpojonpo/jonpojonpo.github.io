@@ -22,7 +22,7 @@ main {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-around;
-    gap: 20px;
+    gap: 10px; /* Reduced gap */
 }
 
 .gpt-item {
@@ -30,8 +30,8 @@ main {
     border-radius: 7px;
     box-shadow: 0 2px 20px rgba(255, 255, 255, 0.05); /* Subtle shadow for dark theme */
     overflow: hidden;
-    width: calc(33.333% - 40px);
-    margin-bottom: 20px;
+    width: calc(33.333% - 20px); /* Adjusted width to accommodate reduced gap */
+    margin-bottom: 10px; /* Reduced margin-bottom */
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     cursor: pointer; /* Indicates the item is clickable */
 }
@@ -85,12 +85,12 @@ main {
 
 @media (max-width: 1000px) {
     .gpt-item {
-        width: calc(50% - 40px);
+        width: calc(50% - 20px); /* Adjusted for medium screens */
     }
 }
 
 @media (max-width: 600px) {
     .gpt-item {
-        width: 100%;
+        width: calc(100% - 20px); /* Adjusted for small screens */
     }
 }

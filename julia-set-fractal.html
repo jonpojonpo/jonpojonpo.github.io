@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinitely Zooming Julia Set Fractal</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="fractalCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('fractalCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let zoomLevel = 1;
+        let colorOffset = 0;
+
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function juliaSet(x, y, zoom) {
+            const maxIterations = 100;
+            const cx = -0.7;
+            const cy = 0.27015;
+            let zx = (x - width / 2) / (0.5 * zoom * width);
+            let zy = (y - height / 2) / (0.5 * zoom * height);
+            let i;
+
+            for (i = 0; i < maxIterations; i++) {
+                const x2 = zx * zx;
+                const y2 = zy * zy;
+                if (x2 + y2 > 4) break;
+                const newZx = x2 - y2 + cx;
+                zy = 2 * zx * zy + cy;
+                zx = newZx;
+            }
+
+            return i;
+        }
+
+        function drawFractal() {
+            const imageData = ctx.createImageData(width, height);
+            const data = imageData.data;
+
+            for (let x = 0; x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    const i = juliaSet(x, y, zoomLevel);
+                    const index = (y * width + x) * 4;
+                    const hue = (i / 100 * 360 + colorOffset) % 360;
+                    const [r, g, b] = hslToRgb(hue / 360, 0.8, 0.5);
+                    data[index] = r;
+                    data[index + 1] = g;
+                    data[index + 2] = b;
+                    data[index + 3] = 255;
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function hslToRgb(h, s, l) {
+            let r, g, b;
+
+            if (s === 0) {
+                r = g = b = l;
+            } else {
+                const hue2rgb = (p, q, t) => {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1 / 6) return p + (q - p) * 6 * t;
+                    if (t < 1 / 2) return q;
+                    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                    return p;
+                };
+
+                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                const p = 2 * l - q;
+                r = hue2rgb(p, q, h + 1 / 3);
+                g = hue2rgb(p, q, h);
+                b = hue2rgb(p, q, h - 1 / 3);
+            }
+
+            return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+        }
+
+        function animate() {
+            zoomLevel *= 1.01;
+            colorOffset += 2;
+            drawFractal();
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

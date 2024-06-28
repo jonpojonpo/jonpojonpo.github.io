@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Gallery with Audio Sync</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        #gallery-frame {
+            width: 80%;
+            height: 70vh;
+            border: none;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #controls {
+            margin-top: 20px;
+        }
+        button {
+            margin: 0 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <iframe id="gallery-frame" src=""></iframe>
+    <div id="controls">
+        <button id="prevBtn">Previous</button>
+        <button id="playPauseBtn">Play</button>
+        <button id="nextBtn">Next</button>
+        <input type="file" id="audioUpload" accept="audio/*">
+    </div>
+    <audio id="audioPlayer"></audio>
+
+    <script>
+        const pages = [
+            'tempest-tunnel.html',
+            'julia-set-fractal.html',
+            'https://example.com/page3.html'
+            // Add more page URLs as needed
+        ];
+
+        let currentPageIndex = 0;
+        let isPlaying = false;
+        let audioContext, analyser, dataArray;
+        let animationId;
+
+        const frame = document.getElementById('gallery-frame');
+        const prevBtn = document.getElementById('prevBtn');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const audioUpload = document.getElementById('audioUpload');
+        const audioPlayer = document.getElementById('audioPlayer');
+
+        function loadPage(index) {
+            frame.src = pages[index];
+        }
+
+        function nextPage() {
+            currentPageIndex = (currentPageIndex + 1) % pages.length;
+            loadPage(currentPageIndex);
+        }
+
+        function prevPage() {
+            currentPageIndex = (currentPageIndex - 1 + pages.length) % pages.length;
+            loadPage(currentPageIndex);
+        }
+
+        function togglePlayPause() {
+            if (isPlaying) {
+                audioPlayer.pause();
+                cancelAnimationFrame(animationId);
+                playPauseBtn.textContent = 'Play';
+            } else {
+                audioPlayer.play();
+                animate();
+                playPauseBtn.textContent = 'Pause';
+            }
+            isPlaying = !isPlaying;
+        }
+
+        function setupAudioContext() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            const source = audioContext.createMediaElementSource(audioPlayer);
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+        }
+
+        function animate() {
+            analyser.getByteFrequencyData(dataArray);
+            if (dataArray[0] > 200) {  // Adjust this threshold as needed
+                nextPage();
+            }
+            animationId = requestAnimationFrame(animate);
+        }
+
+        prevBtn.addEventListener('click', prevPage);
+        nextBtn.addEventListener('click', nextPage);
+        playPauseBtn.addEventListener('click', togglePlayPause);
+
+        audioUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                audioPlayer.src = url;
+                if (!audioContext) {
+                    setupAudioContext();
+                }
+            }
+        });
+
+        // Load the first page
+        loadPage(currentPageIndex);
+    </script>
+</body>
+</html>

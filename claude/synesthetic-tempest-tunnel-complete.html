@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Synesthetic Tempest Tunnel</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: black;
+        }
+        #tunnel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #audioControl {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="tunnel"></canvas>
+    <input type="file" id="audioControl" accept="audio/*">
+    <script>
+        const canvas = document.getElementById('tunnel');
+        const ctx = canvas.getContext('2d');
+        const spiralCount = 16;
+        const spirals = [];
+        const particles = [];
+
+        let audioContext, analyser, dataArray, waveformData;
+
+        const frequencyBands = [
+            { max: 60, color: [255, 0, 0] },    // Red (Sub-bass)
+            { max: 150, color: [255, 127, 0] }, // Orange (Bass)
+            { max: 300, color: [255, 255, 0] }, // Yellow (Low midrange)
+            { max: 600, color: [0, 255, 0] },   // Green (Midrange)
+            { max: 1200, color: [0, 255, 255] },// Cyan (Upper midrange)
+            { max: 2400, color: [0, 127, 255] },// Light Blue (Presence)
+            { max: 5000, color: [128, 0, 255] },// Purple (Brilliance)
+            { max: 10000, color: [255, 0, 255] },// Magenta (High Brilliance)
+            { max: Infinity, color: [255, 255, 255] } // White (Beyond hearing range)
+        ];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.z = 0;
+                this.size = Math.random() * 5 + 1;
+                this.speed = Math.random() * 10 + 5;
+                this.angle = Math.random() * Math.PI * 2;
+                this.colorIndex = Math.floor(Math.random() * frequencyBands.length);
+            }
+
+            update(audioIntensity, bandIntensities) {
+                this.z += this.speed * (1 + audioIntensity);
+                if (this.z > 1000) {
+                    this.reset();
+                }
+                const scale = 1000 / (1000 - this.z);
+                this.x = canvas.width / 2 + Math.cos(this.angle) * this.z * scale;
+                this.y = canvas.height / 2 + Math.sin(this.angle) * this.z * scale;
+                this.colorIntensity = bandIntensities[this.colorIndex];
+            }
+
+            draw() {
+                const [r, g, b] = frequencyBands[this.colorIndex].color;
+                const alpha = this.colorIntensity * 0.7;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                ctx.fill();
+            }
+        }
+
+        class Spiral {
+            constructor(index) {
+                this.index = index;
+                this.reset();
+            }
+
+            reset() {
+                this.progress = 0;
+                this.speed = 0.005 + Math.random() * 0.005;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.02;
+                this.colorOffset = Math.random() * frequencyBands.length;
+            }
+
+            update(audioData, waveform, beat) {
+                this.progress += this.speed * (1 + beat * 3);
+                if (this.progress >= 1) {
+                    this.reset();
+                }
+                this.audioIntensity = audioData[Math.floor(this.index * audioData.length / spiralCount)] / 255;
+                this.waveform = waveform;
+                this.rotation = (this.index * 360 / spiralCount + performance.now() * this.rotationSpeed) % 360;
+                this.colorOffset = (this.colorOffset + this.audioIntensity * 0.2) % frequencyBands.length;
+            }
+
+            draw() {
+                const size = Math.min(canvas.width, canvas.height);
+                const maxRadius = size * 0.45;
+                const startRadius = this.progress * maxRadius;
+                const endRadius = startRadius + size * 0.05 * (1 + this.audioIntensity * 2);
+                const lineWidth = size * 0.005 * (1 + this.audioIntensity * 3);
+
+                ctx.beginPath();
+                ctx.strokeStyle = this.getColor();
+                ctx.lineWidth = lineWidth;
+
+                for (let i = 0; i < 360; i += 5) {
+                    const angle = (i + this.rotation) * Math.PI / 180;
+                    const radius = startRadius + (endRadius - startRadius) * (i / 360);
+                    const waveformIndex = Math.floor(i * this.waveform.length / 360);
+                    const waveformValue = this.waveform[waveformIndex] / 128 - 1;
+                    const x = canvas.width / 2 + Math.cos(angle) * (radius + waveformValue * size * 0.05 * (1 + this.audioIntensity * 2));
+                    const y = canvas.height / 2 + Math.sin(angle) * (radius + waveformValue * size * 0.05 * (1 + this.audioIntensity * 2));
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+
+                ctx.stroke();
+            }
+
+            getColor() {
+                const bandIntensities = getFrequencyBandIntensities();
+                let r = 0, g = 0, b = 0, totalIntensity = 0;
+                
+                for (let i = 0; i < frequencyBands.length; i++) {
+                    const index = (i + Math.floor(this.colorOffset)) % frequencyBands.length;
+                    const intensity = Math.pow(bandIntensities[index], 2); // Increase contrast even more
+                    r += frequencyBands[index].color[0] * intensity;
+                    g += frequencyBands[index].color[1] * intensity;
+                    b += frequencyBands[index].color[2] * intensity;
+                    totalIntensity += intensity;
+                }
+
+                if (totalIntensity > 0) {
+                    r = Math.min(255, r / totalIntensity * 2); // Boost colors further
+                    g = Math.min(255, g / totalIntensity * 2);
+                    b = Math.min(255, b / totalIntensity * 2);
+                }
+
+                return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+            }
+        }
+
+        function initSpirals() {
+            for (let i = 0; i < spiralCount; i++) {
+                spirals.push(new Spiral(i));
+            }
+        }
+
+        function initParticles() {
+            for (let i = 0; i < 200; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function detectBeat(audioData) {
+            const beatThreshold = 200;
+            const sum = audioData.reduce((a, b) => a + b, 0);
+            const average = sum / audioData.length;
+            return average > beatThreshold ? 1 : 0;
+        }
+
+        function getFrequencyBandIntensities() {
+            const nyquist = audioContext.sampleRate / 2;
+            const bandIntensities = new Array(frequencyBands.length).fill(0);
+
+            for (let i = 0; i < dataArray.length; i++) {
+                const frequency = i * nyquist / dataArray.length;
+                const intensity = Math.pow(dataArray[i] / 255, 2); // Increase contrast
+
+                for (let j = 0; j < frequencyBands.length; j++) {
+                    if (frequency <= frequencyBands[j].max) {
+                        bandIntensities[j] += intensity;
+                        break;
+                    }
+                }
+            }
+
+            const maxIntensity = Math.max(...bandIntensities);
+            return bandIntensities.map(intensity => maxIntensity > 0 ? intensity / maxIntensity : 0);
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; // Slightly transparent black for trails
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                analyser.getByteTimeDomainData(waveformData);
+            }
+
+            const beat = detectBeat(dataArray);
+            const avgAudioIntensity = dataArray.reduce((a, b) => a + b, 0) / dataArray.length / 255;
+            const bandIntensities = getFrequencyBandIntensities();
+
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(performance.now() * 0.0001 * (1 + avgAudioIntensity));
+            ctx.scale(1 + beat * 0.05, 1 + beat * 0.05);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+            spirals.forEach(spiral => {
+                spiral.update(dataArray, waveformData, beat);
+                spiral.draw();
+            });
+
+            particles.forEach(particle => {
+                particle.update(avgAudioIntensity, bandIntensities);
+                particle.draw();
+            });
+
+            ctx.restore();
+
+            if (beat) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.05 + avgAudioIntensity * 0.1})`; // Reduced opacity
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048; // Increased for better frequency resolution
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            waveformData = new Uint8Array(analyser.fftSize);
+        }
+
+        initAudio();
+
+        document.getElementById('audioControl').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    audioContext.decodeAudioData(e.target.result, function(buffer) {
+                        const source = audioContext.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(analyser);
+                        analyser.connect(audioContext.destination);
+                        source.start(0);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        resizeCanvas();
+        initSpirals();
+        initParticles();
+        animate();
+    </script>
+</body>
+</html>

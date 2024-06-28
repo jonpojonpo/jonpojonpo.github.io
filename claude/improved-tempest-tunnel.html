@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Enhanced Waveform Spiral Tunnel</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: black;
+        }
+        #tunnel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #audioControl {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            width: 50px;
+            height: 50px;
+            background-color: #444;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0;
+            transition: background-color 0.3s;
+        }
+        #audioControl:hover {
+            background-color: #666;
+        }
+        #audioControl::before {
+            content: '+';
+            font-size: 30px;
+            color: #ddd;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="tunnel"></canvas>
+    <input type="file" id="audioControl" accept="audio/*">
+    <script>
+        const canvas = document.getElementById('tunnel');
+        const ctx = canvas.getContext('2d');
+        const spiralCount = 16;
+        const spirals = [];
+
+        let audioContext, analyser, dataArray, waveformData;
+        let colorScheme = 0;
+        const colorSchemes = [
+            {stroke: (intensity) => `rgb(0, ${Math.floor(150 + intensity * 105)}, 255)`, background: 'rgba(0, 0, 0, 0.1)'},
+            {stroke: (intensity) => `rgb(255, ${Math.floor(150 + intensity * 105)}, 0)`, background: 'rgba(0, 0, 0, 0.1)'},
+            {stroke: (intensity) => `rgb(0, 255, ${Math.floor(150 + intensity * 105)})`, background: 'rgba(0, 0, 0, 0.1)'},
+            {stroke: (intensity) => `rgb(255, 255, ${Math.floor(150 + intensity * 105)})`, background: 'rgba(0, 0, 0, 0.1)'}
+        ];
+
+        // Frequency ranges for different instruments (approximate)
+        const instrumentRanges = {
+            bass: { min: 60, max: 250 },
+            drums: { min: 100, max: 500 },
+            synth: { min: 500, max: 2000 },
+            vocals: { min: 200, max: 4000 }
+        };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        class Spiral {
+            constructor(index) {
+                this.index = index;
+                this.reset();
+            }
+
+            reset() {
+                this.progress = 0;
+                this.speed = 0.005 + Math.random() * 0.005;
+            }
+
+            update(audioData, waveform) {
+                this.progress += this.speed;
+                if (this.progress >= 1) {
+                    this.reset();
+                }
+                this.audioIntensity = audioData[Math.floor(this.index * audioData.length / spiralCount)] / 255;
+                this.waveform = waveform;
+            }
+
+            draw() {
+                const size = Math.max(canvas.width, canvas.height) * 1.4; // Increased size to reach corners
+                const maxRadius = size * 0.45;
+                const startRadius = this.progress * maxRadius;
+                const endRadius = startRadius + size * 0.05;
+                const lineWidth = size * 0.005 * (1 + this.audioIntensity);
+
+                ctx.beginPath();
+                ctx.strokeStyle = colorSchemes[colorScheme].stroke(this.audioIntensity);
+                ctx.lineWidth = lineWidth;
+
+                for (let i = 0; i < 360; i += 5) {
+                    const angle = (i + this.index * 360 / spiralCount) * Math.PI / 180;
+                    const radius = startRadius + (endRadius - startRadius) * (i / 360);
+                    const waveformIndex = Math.floor(i * this.waveform.length / 360);
+                    const waveformValue = this.waveform[waveformIndex] / 128 - 1;
+                    
+                    // Apply instrument-specific effects
+                    let x = canvas.width / 2 + Math.cos(angle) * (radius + waveformValue * size * 0.05);
+                    let y = canvas.height / 2 + Math.sin(angle) * (radius + waveformValue * size * 0.05);
+                    
+                    const bassIntensity = getInstrumentIntensity(instrumentRanges.bass);
+                    const drumsIntensity = getInstrumentIntensity(instrumentRanges.drums);
+                    const synthIntensity = getInstrumentIntensity(instrumentRanges.synth);
+                    const vocalsIntensity = getInstrumentIntensity(instrumentRanges.vocals);
+
+                    // Bass: Amplify the waveform
+                    x += Math.cos(angle) * bassIntensity * 50;
+                    y += Math.sin(angle) * bassIntensity * 50;
+
+                    // Drums: Add spikes
+                    if (drumsIntensity > 0.5) {
+                        x += Math.cos(angle) * drumsIntensity * 30 * Math.sin(i * 10);
+                        y += Math.sin(angle) * drumsIntensity * 30 * Math.sin(i * 10);
+                    }
+
+                    // Synth: Add wobble effect
+                    x += Math.cos(angle + synthIntensity * Math.PI) * 20;
+                    y += Math.sin(angle + synthIntensity * Math.PI) * 20;
+
+                    // Vocals: Add glow effect
+                    if (vocalsIntensity > 0.3) {
+                        ctx.shadowBlur = vocalsIntensity * 20;
+                        ctx.shadowColor = 'white';
+                    } else {
+                        ctx.shadowBlur = 0;
+                    }
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+
+                ctx.stroke();
+            }
+        }
+
+        function getInstrumentIntensity(range) {
+            const start = Math.floor(range.min * analyser.frequencyBinCount / audioContext.sampleRate);
+            const end = Math.floor(range.max * analyser.frequencyBinCount / audioContext.sampleRate);
+            let sum = 0;
+            for (let i = start; i < end; i++) {
+                sum += dataArray[i];
+            }
+            return sum / (255 * (end - start));
+        }
+
+        function initSpirals() {
+            for (let i = 0; i < spiralCount; i++) {
+                spirals.push(new Spiral(i));
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; // Keep background fade effect
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                analyser.getByteTimeDomainData(waveformData);
+            }
+
+            spirals.forEach(spiral => {
+                spiral.update(dataArray, waveformData);
+                spiral.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048; // Increased for better frequency resolution
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            waveformData = new Uint8Array(analyser.fftSize);
+        }
+
+        // Initialize audio context and analyser with default values
+        initAudio();
+
+        document.getElementById('audioControl').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    audioContext.decodeAudioData(e.target.result, function(buffer) {
+                        const source = audioContext.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(analyser);
+                        analyser.connect(audioContext.destination);
+                        source.start(0);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // Add keyboard event listener for color scheme changes
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight') {
+                colorScheme = (colorScheme + 1) % colorSchemes.length;
+            } else if (e.key === 'ArrowLeft') {
+                colorScheme = (colorScheme - 1 + colorSchemes.length) % colorSchemes.length;
+            }
+        });
+
+        resizeCanvas();
+        initSpirals();
+        animate();
+    </script>
+</body>
+</html>

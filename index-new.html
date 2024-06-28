@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Controlled Iframes</title>
+    <style>
+        body {
+            display: flex;
+            height: 100vh;
+            margin: 0;
+        }
+        iframe {
+            width: 50%;
+            height: 100%;
+            border: none;
+        }
+        .error {
+            width: 50%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f8d7da;
+            color: #721c24;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="left-pane">
+        <iframe id="left-iframe"></iframe>
+        <div id="left-error" class="error" style="display: none;">Failed to load the left iframe content.</div>
+    </div>
+    <iframe id="ai-controlled-iframe"></iframe>
+
+    <script>
+        // Function to update the AI-controlled iframe
+        function updateAIControlledIframe(url) {
+            document.getElementById('ai-controlled-iframe').src = url;
+        }
+
+        // Example of how the AI might update the iframe
+        function aiUpdateExample() {
+            // The AI logic would determine the URL dynamically
+            let newUrl = "https://example.com"; // Replace this with the desired URL
+            updateAIControlledIframe(newUrl);
+        }
+
+        // Load the left iframe and handle errors
+        function loadLeftIframe() {
+            const leftIframe = document.getElementById('left-iframe');
+            const leftError = document.getElementById('left-error');
+            leftIframe.src = "https://chatgpt.com/?model=gpt-4o";
+
+            leftIframe.onload = () => {
+                leftError.style.display = 'none';
+                leftIframe.style.display = 'block';
+            };
+
+            leftIframe.onerror = () => {
+                leftIframe.style.display = 'none';
+                leftError.style.display = 'flex';
+            };
+        }
+
+        // Initialize the iframes
+        loadLeftIframe();
+        aiUpdateExample();
+    </script>
+</body>
+</html>

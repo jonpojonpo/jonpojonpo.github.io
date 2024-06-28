@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colorful Audio-Reactive Julia Set Tunnel</title>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background: black; }
+        canvas { display: block; }
+        #audioControl { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 10; }
+    </style>
+</head>
+<body>
+    <canvas id="glCanvas"></canvas>
+    <input type="file" id="audioControl" accept="audio/*">
+    <script type="x-shader/x-vertex" id="vertexShader">
+        attribute vec2 a_position;
+        void main() {
+            gl_Position = vec4(a_position, 0.0, 1.0);
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="fragmentShader">
+        precision highp float;
+        uniform vec2 u_resolution;
+        uniform float u_time;
+        uniform vec2 u_juliaC;
+        uniform float u_zoom;
+        uniform float u_rotation;
+        uniform sampler2D u_audioTexture;
+        uniform vec3 u_color1;
+        uniform vec3 u_color2;
+        uniform float u_audioReactivity;
+
+        vec2 rotate(vec2 v, float a) {
+            float s = sin(a);
+            float c = cos(a);
+            mat2 m = mat2(c, -s, s, c);
+            return m * v;
+        }
+
+        vec3 hsv2rgb(vec3 c) {
+            vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+            vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+            return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+        }
+
+        void main() {
+            vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution) / min(u_resolution.y, u_resolution.x);
+            uv = rotate(uv, u_rotation);
+            uv *= u_zoom;
+
+            vec2 z = uv;
+            float iter = 0.0;
+            for(int i = 0; i < 300; i++) {
+                z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + u_juliaC;
+                if(dot(z, z) > 4.0) break;
+                iter++;
+            }
+
+            float smooth_iter = iter + 1.0 - log2(log2(dot(z, z)));
+            smooth_iter = sqrt(smooth_iter / 300.0);
+
+            // Create a tunnel-like effect
+            float tunnel = smoothstep(1.0, 0.0, length(uv));
+            
+            // Generate a rainbow effect
+            vec3 rainbow = hsv2rgb(vec3(smooth_iter * 3.0 + u_time * 0.1, 0.8, 1.0));
+            
+            // Mix between two colors based on iteration
+            vec3 color = mix(u_color1, u_color2, smooth_iter);
+            
+            // Mix in the rainbow effect
+            color = mix(color, rainbow, 0.5);
+            
+            // Apply the tunnel effect
+            color *= tunnel;
+
+            // Audio reactive coloring
+            float audio = texture2D(u_audioTexture, vec2(smooth_iter, 0.0)).r;
+            color = mix(color, vec3(1.0), audio * u_audioReactivity);
+
+            gl_FragColor = vec4(color, 1.0);
+        }
+    </script>
+    <script>
+        const canvas = document.getElementById('glCanvas');
+        const gl = canvas.getContext('webgl');
+
+        let audioContext, analyser, dataArray;
+        let program, timeLocation, resolutionLocation, juliaCLocation, zoomLocation, rotationLocation, audioTextureLocation, color1Location, color2Location, audioReactivityLocation;
+        let audioTexture;
+        let startTime;
+
+        function initShaders() {
+            const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+            gl.shaderSource(vertexShader, document.getElementById('vertexShader').textContent);
+            gl.compileShader(vertexShader);
+
+            const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(fragmentShader, document.getElementById('fragmentShader').textContent);
+            gl.compileShader(fragmentShader);
+
+            program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            gl.useProgram(program);
+
+            const positionAttribute = gl.getAttribLocation(program, 'a_position');
+            const positionBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(positionAttribute);
+            gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
+
+            timeLocation = gl.getUniformLocation(program, 'u_time');
+            resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+            juliaCLocation = gl.getUniformLocation(program, 'u_juliaC');
+            zoomLocation = gl.getUniformLocation(program, 'u_zoom');
+            rotationLocation = gl.getUniformLocation(program, 'u_rotation');
+            audioTextureLocation = gl.getUniformLocation(program, 'u_audioTexture');
+            color1Location = gl.getUniformLocation(program, 'u_color1');
+            color2Location = gl.getUniformLocation(program, 'u_color2');
+            audioReactivityLocation = gl.getUniformLocation(program, 'u_audioReactivity');
+        }
+
+        function initAudioTexture() {
+            audioTexture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, audioTexture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        }
+
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+
+        let smoothedBass = 0;
+        let smoothedMids = 0;
+        let smoothedHighs = 0;
+        let smoothedZoom = 1;
+        let smoothedRotation = 0;
+        let currentC = { x: -0.4, y: 0.6 };
+        let targetC = { x: -0.4, y: 0.6 };
+        let currentColor1 = [1.0, 0.0, 0.0];
+        let currentColor2 = [0.0, 0.0, 1.0];
+        let targetColor1 = [1.0, 0.0, 0.0];
+        let targetColor2 = [0.0, 0.0, 1.0];
+        let audioReactivity = 0.5;
+
+        function smoothValue(current, target, factor) {
+            return current + (target - current) * factor;
+        }
+
+        const goodCValues = [
+            {x: -0.4, y: 0.6},
+            {x: 0.285, y: 0.01},
+            {x: -0.8, y: 0.156},
+            {x: -0.70176, y: -0.3842},
+            {x: 0.285, y: 0.535},
+            {x: -0.835, y: -0.2321},
+        ];
+
+        function generateNewC() {
+            return goodCValues[Math.floor(Math.random() * goodCValues.length)];
+        }
+
+        function generateNewColor() {
+            return [
+                Math.random(),
+                Math.random(),
+                Math.random()
+            ];
+        }
+
+        let lastChangeTime = 0;
+        const changeInterval = 15000; // Change every 15 seconds
+
+        function render(time) {
+            time *= 0.001;  // Convert to seconds
+
+            gl.uniform1f(timeLocation, time - startTime);
+            gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                gl.bindTexture(gl.TEXTURE_2D, audioTexture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 128, 1, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, dataArray);
+
+                let bass = dataArray.slice(0, 4).reduce((a, b) => a + b) / 1024;
+                let mids = dataArray.slice(4, 16).reduce((a, b) => a + b) / 3072;
+                let highs = dataArray.slice(16, 32).reduce((a, b) => a + b) / 4096;
+
+                smoothedBass = smoothValue(smoothedBass, bass, 0.1);
+                smoothedMids = smoothValue(smoothedMids, mids, 0.1);
+                smoothedHighs = smoothValue(smoothedHighs, highs, 0.1);
+
+                currentC.x = smoothValue(currentC.x, targetC.x, 0.03);
+                currentC.y = smoothValue(currentC.y, targetC.y, 0.03);
+
+                let cX = currentC.x + Math.sin(time * 0.2) * 0.03 + smoothedBass * 0.05;
+                let cY = currentC.y + Math.cos(time * 0.2) * 0.03 + smoothedMids * 0.05;
+                gl.uniform2f(juliaCLocation, cX, cY);
+
+                let targetZoom = 0.7 + 0.6 / (smoothedBass * 0.5 + 1);
+                smoothedZoom = smoothValue(smoothedZoom, targetZoom, 0.1);
+                gl.uniform1f(zoomLocation, smoothedZoom);
+
+                let targetRotation = time * 0.1 + smoothedHighs * Math.PI * 0.2;
+                smoothedRotation = smoothValue(smoothedRotation, targetRotation, 0.1);
+                gl.uniform1f(rotationLocation, smoothedRotation);
+
+                // Smooth color transition
+                for (let i = 0; i < 3; i++) {
+                    currentColor1[i] = smoothValue(currentColor1[i], targetColor1[i], 0.03);
+                    currentColor2[i] = smoothValue(currentColor2[i], targetColor2[i], 0.03);
+                }
+                gl.uniform3fv(color1Location, currentColor1);
+                gl.uniform3fv(color2Location, currentColor2);
+
+                // Update audio reactivity
+                audioReactivity = 0.3 + smoothedBass * 0.7;
+                gl.uniform1f(audioReactivityLocation, audioReactivity);
+
+                // Change fractal and color periodically
+                if (time - lastChangeTime > changeInterval / 1000) {
+                    targetC = generateNewC();
+                    targetColor1 = generateNewColor();
+                    targetColor2 = generateNewColor();
+                    lastChangeTime = time;
+                }
+            } else {
+                // If no audio is loaded, use default values
+                gl.uniform2f(juliaCLocation, currentC.x, currentC.y);
+                gl.uniform1f(zoomLocation, 1.0);
+                gl.uniform1f(rotationLocation, time * 0.05);
+                gl.uniform3fv(color1Location, currentColor1);
+                gl.uniform3fv(color2Location, currentColor2);
+                gl.uniform1f(audioReactivityLocation, 0.5);
+            }
+
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            requestAnimationFrame(render);
+        }
+
+        function init() {
+            initShaders();
+            initAudioTexture();
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            startTime = performance.now() * 0.001;
+            requestAnimationFrame(render);
+        }
+
+        document.getElementById('audioControl').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Initialize audio context here, after user interaction
+                if (!audioContext) {
+                    initAudio();
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    audioContext.decodeAudioData(e.target.result, function(buffer) {
+                        const source = audioContext.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(analyser);
+                        analyser.connect(audioContext.destination);
+                        source.start(0);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

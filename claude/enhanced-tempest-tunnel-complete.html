@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Enhanced Waveform Spiral Tunnel</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: black;
+        }
+        #tunnel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #audioControl {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="tunnel"></canvas>
+    <input type="file" id="audioControl" accept="audio/*">
+    <script>
+        const canvas = document.getElementById('tunnel');
+        const ctx = canvas.getContext('2d');
+        const spiralCount = 16;
+        const spirals = [];
+
+        let audioContext, analyser, dataArray, waveformData;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        class Spiral {
+            constructor(index) {
+                this.index = index;
+                this.reset();
+                this.hue = Math.random() * 360; // Random hue for each spiral
+            }
+
+            reset() {
+                this.progress = 0;
+                this.speed = 0.005 + Math.random() * 0.005;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.02; // Random rotation speed
+            }
+
+            update(audioData, waveform, beat) {
+                this.progress += this.speed * (1 + beat * 2); // Speed up on beat
+                if (this.progress >= 1) {
+                    this.reset();
+                }
+                this.audioIntensity = audioData[Math.floor(this.index * audioData.length / spiralCount)] / 255;
+                this.waveform = waveform;
+                this.rotation = (this.index * 360 / spiralCount + performance.now() * this.rotationSpeed) % 360;
+            }
+
+            draw() {
+                const size = Math.min(canvas.width, canvas.height);
+                const maxRadius = size * 0.45;
+                const startRadius = this.progress * maxRadius;
+                const endRadius = startRadius + size * 0.05 * (1 + this.audioIntensity); // Extend spiral based on audio
+                const lineWidth = size * 0.005 * (1 + this.audioIntensity * 2);
+
+                ctx.beginPath();
+                ctx.strokeStyle = `hsl(${this.hue}, 100%, ${50 + this.audioIntensity * 50}%)`; // Dynamic color
+                ctx.lineWidth = lineWidth;
+
+                for (let i = 0; i < 360; i += 5) {
+                    const angle = (i + this.rotation) * Math.PI / 180;
+                    const radius = startRadius + (endRadius - startRadius) * (i / 360);
+                    const waveformIndex = Math.floor(i * this.waveform.length / 360);
+                    const waveformValue = this.waveform[waveformIndex] / 128 - 1;
+                    const x = canvas.width / 2 + Math.cos(angle) * (radius + waveformValue * size * 0.05 * (1 + this.audioIntensity));
+                    const y = canvas.height / 2 + Math.sin(angle) * (radius + waveformValue * size * 0.05 * (1 + this.audioIntensity));
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+
+                ctx.stroke();
+            }
+        }
+
+        function initSpirals() {
+            for (let i = 0; i < spiralCount; i++) {
+                spirals.push(new Spiral(i));
+            }
+        }
+
+        function detectBeat(audioData) {
+            const beatThreshold = 200;
+            const sum = audioData.reduce((a, b) => a + b, 0);
+            const average = sum / audioData.length;
+            return average > beatThreshold ? 1 : 0;
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                analyser.getByteTimeDomainData(waveformData);
+            }
+
+            const beat = detectBeat(dataArray);
+
+            spirals.forEach(spiral => {
+                spiral.update(dataArray, waveformData, beat);
+                spiral.draw();
+            });
+
+            if (beat) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 1024;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            waveformData = new Uint8Array(analyser.fftSize);
+        }
+
+        // Initialize audio context and analyser with default values
+        initAudio();
+
+        document.getElementById('audioControl').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    audioContext.decodeAudioData(e.target.result, function(buffer) {
+                        const source = audioContext.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(analyser);
+                        analyser.connect(audioContext.destination);
+                        source.start(0);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        resizeCanvas();
+        initSpirals();
+        animate();
+    </script>
+</body>
+</html>

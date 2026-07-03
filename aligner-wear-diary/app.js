@@ -63,11 +63,11 @@ const addDays = (date, days) => {
   d.setDate(d.getDate() + days);
   return d;
 };
-function buildSchedule(startDateStr, totalAligners) {
-  if (!startDateStr || !totalAligners) return [];
+function buildSchedule(startDateStr, startAligner, totalAligners) {
+  if (!startDateStr || !totalAligners || !startAligner || startAligner > totalAligners) return [];
   const schedule = [];
   let cursor = new Date(startDateStr + "T00:00:00");
-  for (let n = 1; n <= totalAligners; n++) {
+  for (let n = startAligner; n <= totalAligners; n++) {
     const days = n % 2 === 1 ? 14 : 7;
     const start = new Date(cursor);
     const end = addDays(start, days - 1);
@@ -113,12 +113,14 @@ function buildICS(schedule, includeAlarm) {
 function AlignerWearDiary() {
   const today = new Date().toISOString().slice(0, 10);
   const [startDate, setStartDate] = useState(today);
+  const [startAligner, setStartAligner] = useState(1);
   const [totalAligners, setTotalAligners] = useState(20);
   const [includeAlarm, setIncludeAlarm] = useState(true);
   const [schedule, setSchedule] = useState([]);
   const [built, setBuilt] = useState(false);
+  const invalidRange = Number(startAligner) > Number(totalAligners);
   const handleBuild = () => {
-    const s = buildSchedule(startDate, Number(totalAligners));
+    const s = buildSchedule(startDate, Number(startAligner), Number(totalAligners));
     setSchedule(s);
     setBuilt(true);
   };
@@ -199,11 +201,24 @@ function AlignerWearDiary() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
+      flex: "1 1 140px"
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: labelStyle
+  }, "Starting aligner #"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: 1,
+    max: totalAligners || 60,
+    value: startAligner,
+    onChange: e => setStartAligner(e.target.value),
+    style: inputStyle
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
       flex: "1 1 200px"
     }
   }, /*#__PURE__*/React.createElement("label", {
     style: labelStyle
-  }, "Aligner 1 start date"), /*#__PURE__*/React.createElement("input", {
+  }, "Start date for aligner ", startAligner || 1), /*#__PURE__*/React.createElement("input", {
     type: "date",
     value: startDate,
     onChange: e => setStartDate(e.target.value),
@@ -214,7 +229,7 @@ function AlignerWearDiary() {
     }
   }, /*#__PURE__*/React.createElement("label", {
     style: labelStyle
-  }, "Total aligners"), /*#__PURE__*/React.createElement("input", {
+  }, "Total aligners (full treatment)"), /*#__PURE__*/React.createElement("input", {
     type: "number",
     min: 1,
     max: 60,
@@ -241,7 +256,7 @@ function AlignerWearDiary() {
       flexShrink: 0,
       color: "#0F4C4C"
     }
-  }), /*#__PURE__*/React.createElement("span", null, "Odd aligners (1, 3, 5\u2026) are worn for ", /*#__PURE__*/React.createElement("strong", null, "14 days"), ". Even aligners (2, 4, 6\u2026) are worn for ", /*#__PURE__*/React.createElement("strong", null, "7 days"), ". The schedule alternates automatically from the start date you set.")), /*#__PURE__*/React.createElement("label", {
+  }), /*#__PURE__*/React.createElement("span", null, "Odd aligners (1, 3, 5\u2026) are worn for ", /*#__PURE__*/React.createElement("strong", null, "14 days"), ". Even aligners (2, 4, 6\u2026) are worn for ", /*#__PURE__*/React.createElement("strong", null, "7 days"), ". The schedule alternates automatically from the start date you set. Already partway through treatment? Set ", /*#__PURE__*/React.createElement("strong", null, "Starting aligner #"), " to the one you're currently wearing \u2014 the schedule will pick up from there with the correct pattern.")), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -270,11 +285,17 @@ function AlignerWearDiary() {
       display: "flex",
       gap: 10,
       marginTop: 20,
-      flexWrap: "wrap"
+      flexWrap: "wrap",
+      alignItems: "center"
     }
   }, /*#__PURE__*/React.createElement("button", {
     onClick: handleBuild,
-    style: primaryButton
+    disabled: invalidRange,
+    style: {
+      ...primaryButton,
+      opacity: invalidRange ? 0.45 : 1,
+      cursor: invalidRange ? "not-allowed" : "pointer"
+    }
   }, "Build diary"), /*#__PURE__*/React.createElement("button", {
     onClick: handleDownload,
     disabled: schedule.length === 0,
@@ -289,7 +310,12 @@ function AlignerWearDiary() {
       marginRight: 6,
       verticalAlign: -2
     }
-  }), "Download calendar (.ics)"))), built && schedule.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }), "Download calendar (.ics)"), invalidRange && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11.5,
+      color: "#B5652F"
+    }
+  }, "Starting aligner # can't be greater than total aligners."))), built && schedule.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#F7F6F1",
       border: "1px solid #D9D7CC",
@@ -312,7 +338,7 @@ function AlignerWearDiary() {
       fontWeight: 600,
       color: "#0F4C4C"
     }
-  }, schedule.length, " aligners scheduled"), finalDate && /*#__PURE__*/React.createElement("span", {
+  }, schedule.length, " aligners scheduled", Number(startAligner) > 1 ? ` (starting at #${startAligner})` : ""), finalDate && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11.5,
       color: "#5B6664"
